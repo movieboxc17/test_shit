@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Satellite Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/cesium@1.94/Build/Cesium/Widgets/widgets.css">
+    <style>
+        html, body, #cesiumContainer {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <script src="https://unpkg.com/cesium@1.94/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
+    <script>
+        // Initialize Cesium Viewer
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: Cesium.createWorldTerrain(),
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+        });
+
+        // Example TLE for ISS (International Space Station)
+        const tleLine1 = "1 25544U 98067A   20332.54584491  .00000832  00000-0  23947-4 0  9990";
+        const tleLine2 = "2 25544  51.6460  21.4892 0001117  48.5641  99.3240 15.49383304248348";
+
+        // Function to track satellite
+        function trackSatellite() {
+            // Get current time
+            const now = new Date();
+
+            // Parse TLE data to get satellite position
+            const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
+            const positionAndVelocity = satellite.propagate(satrec, now);
+            const positionEci = positionAndVelocity.position;
+
+            // Convert satellite position to latitude/longitude
+            const gmst = satellite.gstime(now);
+            const positionGd = satellite.eciToGeodetic(positionEci, gmst);
+            const latitude = satellite.degreesLat(positionGd.latitude);
+            const longitude = satellite.degreesLong(positionGd.longitude);
+            const altitude = positionGd.height * 1000; // Convert to meters
+
+            // Add or update satellite position on the globe
+            const satelliteEntity = viewer.entities.getById('satelliteMarker');
+            if (satelliteEntity) {
+                satelliteEntity.position = Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude);
+            } else {
+                viewer.entities.add({
+                    id: 'satelliteMarker',
+                    position: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
+                    point: {
+                        pixelSize: 10,
+                        color: Cesium.Color.YELLOW,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                    },
+                    label: {
+                        text: 'Satellite',
+                        font: '12px sans-serif',
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        outlineWidth: 1,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                    },
+                });
+            }
+
+            // Set view to satellite position
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude + 500000), // 500 km above the satellite
+            });
+        }
+
+        // Update satellite position every 10 seconds
+        setInterval(trackSatellite, 10000);
+        trackSatellite();
+    </script>
+</body>
+</html>
